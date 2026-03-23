@@ -9,13 +9,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score,
     f1_score, roc_curve, auc, confusion_matrix
 )
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -87,15 +86,13 @@ def train_lr(_X_train, _y_train):
 
 @st.cache_resource
 def train_ann(_X_train, _y_train, epochs=50, dropout=0.2):
-    model = Sequential([
-        Dense(64, activation="relu", input_shape=(_X_train.shape[1],)),
-        Dropout(dropout),
-        Dense(32, activation="relu"),
-        Dropout(dropout),
-        Dense(1, activation="sigmoid")
-    ])
-    model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
-    model.fit(_X_train, _y_train, epochs=epochs, batch_size=16, verbose=0)
+    model = MLPClassifier(
+        hidden_layer_sizes=(64, 32),
+        activation="relu",
+        max_iter=epochs * 2,
+        random_state=42
+    )
+    model.fit(_X_train, _y_train)
     return model
 
 
@@ -210,7 +207,7 @@ def page_home(X_train_sc, y_train, scaler, feature_cols):
 
         p_knn = knn.predict_proba(user_sc)[0, 1]
         p_lr  = lr.predict_proba(user_sc)[0, 1]
-        p_ann = float(ann.predict(user_sc, verbose=0)[0][0])
+        p_ann = ann.predict_proba(user_sc)[0, 1]
         score = (p_knn + p_lr + p_ann) / 3
 
         st.markdown("---")
@@ -318,7 +315,7 @@ def page_batch(X_train_sc, y_train, scaler, feature_cols):
 
     p_knn = knn.predict_proba(batch_sc)[:, 1]
     p_lr  = lr.predict_proba(batch_sc)[:, 1]
-    p_ann = ann.predict(batch_sc, verbose=0).flatten()
+    p_ann = ann.predict_proba(batch_sc)[:, 1]
     ensemble = (p_knn + p_lr + p_ann) / 3
 
     results = batch_df.copy()
@@ -367,10 +364,10 @@ def page_performance(X_train_sc, X_test_sc, y_train, y_test):
     # Predictions
     y_knn  = knn.predict(X_test_sc)
     y_lr   = lr.predict(X_test_sc)
-    y_ann  = (ann.predict(X_test_sc, verbose=0).flatten() > 0.5).astype(int)
+    y_ann  = ann.predict(X_test_sc)
     p_knn  = knn.predict_proba(X_test_sc)[:, 1]
     p_lr   = lr.predict_proba(X_test_sc)[:, 1]
-    p_ann  = ann.predict(X_test_sc, verbose=0).flatten()
+    p_ann  = ann.predict_proba(X_test_sc)[:, 1]
 
     def metrics(y_true, y_pred):
         return {
